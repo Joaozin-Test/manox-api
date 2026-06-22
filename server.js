@@ -20,7 +20,7 @@ app.post("/api/manox/register", (req, res) => {
 
     manoxUsers.set(username.toLowerCase(), {
         username: username,
-        userId: userId or null,
+        userId: userId || null,
         lastSeen: Date.now()
     });
 
