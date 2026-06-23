@@ -6,6 +6,7 @@ app.use(express.json());
 // Apenas exemplo: memória é apagada quando o Render reinicia.
 // Para manter dados, use banco de dados.
 const manoxUsers = new Map();
+const tempAdmins = new Map();
 
 // Registra/atualiza um usuário
 app.post("/api/manox/register", (req, res) => {
@@ -98,6 +99,80 @@ app.post('/api/manox/send-jobid', (req, res) => {
 
 app.get('/api/manox/get-jobid', (req, res) => {
     return res.status(200).json(playerSession);
+});
+
+// Lista admins temporários ativos
+app.get("/api/manox/temp-admins", (req, res) => {
+    const now = Date.now();
+    const admins = [];
+
+    for (const [key, data] of tempAdmins) {
+        if (now < data.expiresAt) {
+            admins.push({
+                username: data.username,
+                expiresAt: data.expiresAt
+            });
+        } else {
+            tempAdmins.delete(key);
+        }
+    }
+
+    res.json({
+        success: true,
+        admins: admins
+    });
+});
+
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
+
+function checkAdminKey(req, res, next) {
+    if (!ADMIN_API_KEY || req.headers["x-manox-key"] !== ADMIN_API_KEY) {
+        return res.status(401).json({
+            success: false,
+            message: "Não autorizado"
+        });
+    }
+
+    next();
+}
+
+// Adiciona admin temporário
+app.post("/api/manox/temp-admins/add", checkAdminKey, (req, res) => {
+    const { username, durationMinutes } = req.body;
+
+    if (typeof username !== "string" || username.trim() === "") {
+        return res.status(400).json({
+            success: false,
+            message: "username inválido"
+        });
+    }
+
+    const minutes = Math.max(1, Math.min(Number(durationMinutes) || 60, 1440));
+
+    tempAdmins.set(username.toLowerCase(), {
+        username: username,
+        expiresAt: Date.now() + (minutes * 60 * 1000)
+    });
+
+    res.json({
+        success: true
+    });
+});
+
+app.post("/api/manox/temp-admins/remove", checkAdminKey, (req, res) => {
+    const { username } = req.body;
+
+    if (typeof username !== "string") {
+        return res.status(400).json({
+            success: false
+        });
+    }
+
+    tempAdmins.delete(username.toLowerCase());
+
+    res.json({
+        success: true
+    });
 });
 
 app.get("/", (req, res) => {
