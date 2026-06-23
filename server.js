@@ -138,7 +138,7 @@ function checkAdminKey(req, res, next) {
 
 // Adiciona admin temporário
 app.post("/api/manox/temp-admins/add", checkAdminKey, (req, res) => {
-    const { username, durationMinutes } = req.body;
+    const { username } = req.body;
 
     if (typeof username !== "string" || username.trim() === "") {
         return res.status(400).json({
@@ -147,15 +147,18 @@ app.post("/api/manox/temp-admins/add", checkAdminKey, (req, res) => {
         });
     }
 
-    const minutes = Math.max(1, Math.min(Number(durationMinutes) || 60, 1440));
+    const ONE_HOUR = 60 * 60 * 1000;
 
     tempAdmins.set(username.toLowerCase(), {
         username: username,
-        expiresAt: Date.now() + (minutes * 60 * 1000)
+        expiresAt: Date.now() + ONE_HOUR
     });
 
     res.json({
-        success: true
+        success: true,
+        username: username,
+        expiresAt: Date.now() + ONE_HOUR,
+        message: "Admin temporário adicionado por 1 hora."
     });
 });
 
