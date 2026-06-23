@@ -71,6 +71,35 @@ app.post("/api/manox/heartbeat", (req, res) => {
     });
 });
 
+let playerSession = {
+    username: "Nenhum",
+    placeId: null,
+    jobId: null,
+    timestamp: null
+};
+
+app.post('/api/manox/send-jobid', (req, res) => {
+    const { username, placeId, jobId } = req.body;
+    
+    if (!username || !placeId || !jobId) {
+        return res.status(400).json({ error: "Dados incompletos." });
+    }
+
+    playerSession = {
+        username,
+        placeId,
+        jobId,
+        timestamp: Date.now()
+    };
+
+    console.log(`Sessão atualizada para o jogador: ${username}`);
+    return res.status(200).json({ success: true, message: "Sessão salva com sucesso!" });
+});
+
+app.get('/api/manox/get-jobid', (req, res) => {
+    return res.status(200).json(playerSession);
+});
+
 app.get("/", (req, res) => {
     res.send("Manox API online");
 });
