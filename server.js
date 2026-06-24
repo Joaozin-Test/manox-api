@@ -276,6 +276,17 @@ app.get("/api/manox/system-messages", (req, res) => {
     });
 });
 
+// Limpa todo o chat global
+app.post("/api/manox/chat/clear", checkAdminKey, (req, res) => {
+    globalMessages.length = 0;
+    lastMessageAt.clear();
+
+    res.json({
+        success: true,
+        message: "Chat global limpo."
+    });
+});
+
 app.get("/", (req, res) => {
     res.send("Manox API online");
 });
