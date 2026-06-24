@@ -178,6 +178,67 @@ app.post("/api/manox/temp-admins/remove", checkAdminKey, (req, res) => {
     });
 });
 
+const globalMessages = [];
+const MAX_MESSAGES = 50;
+const RATE_LIMIT_MS = 2000;
+const lastMessageAt = new Map();
+
+app.post("/api/manox/chat", (req, res) => {
+    const { username, userId, message } = req.body;
+
+    if (
+        typeof username !== "string" ||
+        typeof message !== "string" ||
+        username.trim() === "" ||
+        message.trim() === ""
+    ) {
+        return res.status(400).json({
+            success: false,
+            message: "Dados inválidos."
+        });
+    }
+
+    const cleanMessage = message.trim().slice(0, 200);
+    const key = String(userId || username).toLowerCase();
+    const now = Date.now();
+    const lastTime = lastMessageAt.get(key) || 0;
+
+    if (now - lastTime < RATE_LIMIT_MS) {
+        return res.status(429).json({
+            success: false,
+            message: "Espere um pouco antes de enviar outra mensagem."
+        });
+    }
+
+    lastMessageAt.set(key, now);
+
+    const chatMessage = {
+        id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
+        username: username.trim(),
+        userId: userId || null,
+        message: cleanMessage,
+        createdAt: now
+    };
+
+    globalMessages.push(chatMessage);
+
+    if (globalMessages.length > MAX_MESSAGES) {
+        globalMessages.shift();
+    }
+
+    res.json({
+        success: true,
+        message: chatMessage
+    });
+});
+
+app.get("/api/manox/get-chat", (req, res) => {
+    res.json({
+        success: true,
+        messages: globalMessages
+    });
+});
+
 app.get("/", (req, res) => {
     res.send("Manox API online");
 });
