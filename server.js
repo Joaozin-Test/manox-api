@@ -182,6 +182,8 @@ const globalMessages = [];
 const MAX_MESSAGES = 50;
 const RATE_LIMIT_MS = 2000;
 const lastMessageAt = new Map();
+const systemMessages = [];
+const MAX_SYSTEM_MESSAGES = 9999999999999999999999999;
 
 app.post("/api/manox/chat", (req, res) => {
     const { username, userId, message } = req.body;
@@ -236,6 +238,41 @@ app.get("/api/manox/get-chat", (req, res) => {
     res.json({
         success: true,
         messages: globalMessages
+    });
+});
+
+app.post("/api/manox/system-message", checkAdminKey, (req, res) => {
+    const { message } = req.body;
+
+    if (typeof message !== "string" || message.trim() === "") {
+        return res.status(400).json({
+            success: false,
+            message: "Mensagem inválida."
+        });
+    }
+
+    const systemMessage = {
+        id: `system-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        message: message.trim().slice(0, 250),
+        createdAt: Date.now()
+    };
+
+    systemMessages.push(systemMessage);
+
+    if (systemMessages.length > MAX_SYSTEM_MESSAGES) {
+        systemMessages.shift();
+    }
+
+    res.json({
+        success: true,
+        message: systemMessage
+    });
+});
+
+app.get("/api/manox/system-messages", (req, res) => {
+    res.json({
+        success: true,
+        messages: systemMessages
     });
 });
 
