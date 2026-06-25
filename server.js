@@ -439,6 +439,50 @@ app.post("/api/manox/server-chat/clear", checkAdminKey, (req, res) => {
     });
 });
 
+app.post("/api/manox/server-chat/system", checkAdminKey, (req, res) => {
+    const { serverId, message } = req.body;
+
+    if (
+        typeof serverId !== "string" || serverId.trim() === "" ||
+        typeof message !== "string" || message.trim() === ""
+    ) {
+        return res.status(400).json({
+            success: false,
+            message: "Dados inválidos."
+        });
+    }
+
+    const cleanServerId = serverId.trim();
+    const cleanMessage = message.trim().slice(0, 250);
+
+    if (!serverChats.has(cleanServerId)) {
+        serverChats.set(cleanServerId, {
+            messages: [],
+            onlineUsers: new Map()
+        });
+    }
+
+    const chat = serverChats.get(cleanServerId);
+
+    const systemMessage = {
+        id: `server-system-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type: "system",
+        message: cleanMessage,
+        createdAt: Date.now()
+    };
+
+    chat.messages.push(systemMessage);
+
+    if (chat.messages.length > SERVER_CHAT_MAX_MESSAGES) {
+        chat.messages.shift();
+    }
+
+    res.json({
+        success: true,
+        message: systemMessage
+    });
+});
+
 app.get("/", (req, res) => {
     res.send("Manox API online");
 });
