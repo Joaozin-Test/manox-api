@@ -179,11 +179,16 @@ app.post("/api/manox/temp-admins/remove", checkAdminKey, (req, res) => {
 });
 
 const globalMessages = [];
-const MAX_MESSAGES = 50;
+const MAX_MESSAGES = 999999999999999999999999999999999999999999;
 const RATE_LIMIT_MS = 2000;
 const lastMessageAt = new Map();
 const systemMessages = [];
 const MAX_SYSTEM_MESSAGES = 9999999999999999999999999;
+const serverChats = new Map();
+
+const SERVER_CHAT_MAX_MESSAGES = 999999999999999999999999999999999999999999;
+const SERVER_USER_TIMEOUT_MS = 30 * 1000; // usuário considerado offline após 30s
+const SERVER_EMPTY_DELETE_MS = 60 * 1000; // apaga chat vazio após 1 minuto
 
 app.post("/api/manox/chat", (req, res) => {
     const { username, userId, message } = req.body;
@@ -284,6 +289,153 @@ app.post("/api/manox/chat/clear", checkAdminKey, (req, res) => {
     res.json({
         success: true,
         message: "Chat global limpo."
+    });
+});
+
+function cleanupServerChats() {
+    const now = Date.now();
+
+    for (const [serverId, chat] of serverChats) {
+        // Remove usuários que pararam de enviar presença
+        for (const [userKey, lastSeen] of chat.onlineUsers) {
+            if (now - lastSeen > SERVER_USER_TIMEOUT_MS) {
+                chat.onlineUsers.delete(userKey);
+            }
+        }
+
+        // Se não existe ninguém online, apaga mensagens e o chat inteiro
+        if (chat.onlineUsers.size === 0) {
+            serverChats.delete(serverId);
+        }
+    }
+}
+
+// Executa a limpeza a cada 15 segundos
+setInterval(cleanupServerChats, 15 * 1000);
+
+// Mantém o jogador marcado como online naquele servidor
+app.post("/api/manox/server-chat/presence", (req, res) => {
+    const { serverId, username, userId } = req.body;
+
+    if (
+        typeof serverId !== "string" || serverId.trim() === "" ||
+        typeof username !== "string" || username.trim() === ""
+    ) {
+        return res.status(400).json({
+            success: false,
+            message: "Dados inválidos."
+        });
+    }
+
+    const cleanServerId = serverId.trim();
+    const userKey = String(userId || username).toLowerCase();
+
+    if (!serverChats.has(cleanServerId)) {
+        serverChats.set(cleanServerId, {
+            messages: [],
+            onlineUsers: new Map()
+        });
+    }
+
+    const chat = serverChats.get(cleanServerId);
+    chat.onlineUsers.set(userKey, Date.now());
+
+    res.json({
+        success: true,
+        online: chat.onlineUsers.size
+    });
+});
+
+// Envia mensagem apenas para aquele servidor
+app.post("/api/manox/server-chat/send", (req, res) => {
+    const { serverId, username, userId, message } = req.body;
+
+    if (
+        typeof serverId !== "string" || serverId.trim() === "" ||
+        typeof username !== "string" || username.trim() === "" ||
+        typeof message !== "string" || message.trim() === ""
+    ) {
+        return res.status(400).json({
+            success: false,
+            message: "Dados inválidos."
+        });
+    }
+
+    const cleanServerId = serverId.trim();
+    const cleanMessage = message.trim().slice(0, 200);
+    const userKey = String(userId || username).toLowerCase();
+
+    if (!serverChats.has(cleanServerId)) {
+        serverChats.set(cleanServerId, {
+            messages: [],
+            onlineUsers: new Map()
+        });
+    }
+
+    const chat = serverChats.get(cleanServerId);
+
+    // Quem envia também conta como online
+    chat.onlineUsers.set(userKey, Date.now());
+
+    const chatMessage = {
+        id: `server-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        username: username.trim(),
+        userId: userId || null,
+        message: cleanMessage,
+        createdAt: Date.now()
+    };
+
+    chat.messages.push(chatMessage);
+
+    if (chat.messages.length > SERVER_CHAT_MAX_MESSAGES) {
+        chat.messages.shift();
+    }
+
+    res.json({
+        success: true,
+        message: chatMessage
+    });
+});
+
+// Busca mensagens somente daquele servidor
+app.get("/api/manox/server-chat/messages", (req, res) => {
+    const serverId = req.query.serverId;
+
+    if (typeof serverId !== "string" || serverId.trim() === "") {
+        return res.status(400).json({
+            success: false,
+            message: "serverId inválido."
+        });
+    }
+
+    const chat = serverChats.get(serverId.trim());
+
+    res.json({
+        success: true,
+        messages: chat ? chat.messages : []
+    });
+});
+
+// Limpa o chat de um servidor específico
+app.post("/api/manox/server-chat/clear", checkAdminKey, (req, res) => {
+    const { serverId } = req.body;
+
+    if (typeof serverId !== "string" || serverId.trim() === "") {
+        return res.status(400).json({
+            success: false,
+            message: "serverId inválido."
+        });
+    }
+
+    const chat = serverChats.get(serverId.trim());
+
+    if (chat) {
+        chat.messages.length = 0;
+    }
+
+    res.json({
+        success: true,
+        message: "Chat do servidor limpo."
     });
 });
 
